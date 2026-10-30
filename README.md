@@ -6,18 +6,20 @@ It's made for people who make videos with Claude: HyperFrames, Remotion, ffmpeg,
 
 ## Install
 
-At the prompt of a Claude Code terminal session:
-
-```
-/plugin install loupe --marketplace anshumanofficial2002-cpu/loupe
-```
-
-Answer `y` to add the marketplace, then pick a scope (user scope is the default).
-
-From a shell:
+In a terminal (two commands, run one after the other):
 
 ```bash
-claude plugin install loupe --marketplace anshumanofficial2002-cpu/loupe
+claude plugin marketplace add anshumanofficial2002-cpu/loupe
+claude plugin install loupe@loupe
+```
+
+Then start Claude Code (`claude`) in your project folder and type `/loupe`.
+
+Or, from inside a running Claude Code session (after typing `claude`), type these at its prompt. They're Claude Code commands, so pasting them into a plain terminal gives `no such file or directory: /plugin`:
+
+```
+/plugin marketplace add anshumanofficial2002-cpu/loupe
+/plugin install loupe@loupe
 ```
 
 In the Claude desktop app: click **+** next to the prompt box, then **Plugins** → **Add marketplace**, enter `anshumanofficial2002-cpu/loupe`, then **Add plugin**.
