@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loupe</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">Loupe</div>
+    <label>Project <select id="project"></select></label>
+    <label>Render <select id="video"></select></label>
+    <span id="meta" class="dim"></span>
+    <span class="grow"></span>
+    <button id="help-btn" class="ghost" title="Keyboard shortcuts (?)">Shortcuts</button>
+  </header>
+
+  <main>
+    <section class="player">
+      <div id="stage" class="stage">
+        <video id="v" preload="auto" playsinline></video>
+        <canvas id="overlay"></canvas>
+        <div id="stage-hint" class="stage-hint">Drag on the picture to draw a box where the change should go</div>
+      </div>
+
+      <div class="readout">
+        <span id="pos" class="pos">F0000 · 0.000 s · 00:00:00</span>
+        <span id="beat" class="chip beat"></span>
+        <span id="range" class="dim"></span>
+        <span class="grow"></span>
+        <input id="goto" placeholder="Go to: 12.5 · 0:12:05 · f300 · 12.5-14" spellcheck="false" />
+      </div>
+
+      <div class="transport">
+        <button data-act="start" title="Start (Home)">⏮</button>
+        <button data-act="-1s" title="Back 1 s (J or Shift+←)">−1 s</button>
+        <button data-act="-1f" title="Back 1 frame (←)">◀ 1f</button>
+        <button data-act="play" id="play" class="primary" title="Play / pause (Space or K)">▶ Play</button>
+        <button data-act="+1f" title="Forward 1 frame (→)">1f ▶</button>
+        <button data-act="+1s" title="Forward 1 s (L or Shift+→)">+1 s</button>
+        <button data-act="end" title="End (End)">⏭</button>
+        <span class="sep"></span>
+        <button data-act="in" title="Mark in (I)">Mark in</button>
+        <button data-act="out" title="Mark out (O)">Mark out</button>
+        <button data-act="clear" title="Clear range and box (X)">Clear</button>
+        <button data-act="loop" id="loop" title="Loop the marked range (P)">⟲ Loop range</button>
+        <span class="sep"></span>
+        <label class="dim">Speed <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
+        <label class="dim"><input type="checkbox" id="mute" /> Mute</label>
+      </div>
+
+      <div id="timeline" class="timeline">
+        <div id="tl-beats" class="tl-beats"></div>
+        <div id="tl-range" class="tl-range"></div>
+        <div id="tl-notes" class="tl-notes"></div>
+        <div id="tl-head" class="tl-head"></div>
+      </div>
+      <div id="tl-ticks" class="tl-ticks dim"></div>
+    </section>
+
+    <aside class="side">
+      <div class="composer">
+        <div class="row">
+          <strong>New note</strong>
+          <span id="pin" class="dim"></span>
+        </div>
+        <div id="kinds" class="kinds"></div>
+        <textarea id="note" rows="4" placeholder="What should change here? (Enter to save, Shift+Enter for a new line)&#10;e.g. hold this word 6 frames longer · add a soft pop when the card lands · this cut is too early"></textarea>
+        <div class="row">
+          <label class="dim"><input type="checkbox" id="snap" checked /> Save a snapshot</label>
+          <span id="boxinfo" class="dim"></span>
+          <span class="grow"></span>
+          <button id="save" class="primary">Save note</button>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <div class="tabs">
+          <button data-filter="open" class="tab on">Open <span id="n-open"></span></button>
+          <button data-filter="done" class="tab">Done <span id="n-done"></span></button>
+          <button data-filter="all" class="tab">All</button>
+        </div>
+        <span class="grow"></span>
+        <button id="copy" class="ghost" title="Copy the open notes as text">Copy for Claude</button>
+      </div>
+      <div id="notes" class="notes"></div>
+      <div class="foot dim">Saved to <code id="path"></code>. In Claude Code, the Loupe pane's “Send open notes” button, or asking Claude to apply your notes, hands them over.</div>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <dialog id="help">
+    <h3>Shortcuts</h3>
+    <table>
+      <tr><td>Space / K</td><td>Play / pause</td></tr>
+      <tr><td>← / →</td><td>One frame back / forward</td></tr>
+      <tr><td>Shift + ← / → or J / L</td><td>One second back / forward</td></tr>
+      <tr><td>Home / End</td><td>Start / end</td></tr>
+      <tr><td>↑ / ↓</td><td>Previous / next beat</td></tr>
+      <tr><td>I / O</td><td>Mark in / out</td></tr>
+      <tr><td>X</td><td>Clear range and box</td></tr>
+      <tr><td>P</td><td>Loop the marked range</td></tr>
+      <tr><td>N</td><td>Write a note (Enter saves, Esc leaves the field)</td></tr>
+      <tr><td>1 – 8</td><td>Pick the note type</td></tr>
+      <tr><td>Drag on the picture</td><td>Draw a box (Esc clears it)</td></tr>
+      <tr><td>G</td><td>Go to a time, frame or range</td></tr>
+    </table>
+    <form method="dialog"><button class="primary">Close</button></form>
+  </dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

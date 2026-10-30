@@ -1,0 +1,6 @@
+{
+  "name": "loupe",
+  "description": "Loupe: frame-accurate edit notes for Claude Code.",
+  "owner": { "name": "Anshuman Shrivastava" },
+  "plugins": [{ "name": "loupe", "source": "./" }]
+}
