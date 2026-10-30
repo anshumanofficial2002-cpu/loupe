@@ -41,10 +41,12 @@ Run `/loupe` in a session started in your project folder (or the folder above se
    | --- | --- | --- | --- |
    | `a` / `d` | 1 frame back / forward | `i` / `o` | mark in / out |
    | `q` / `e` | 5 frames | `x` | clear the range |
-   | `z` / `c` | 1 second | | |
+   | `z` / `c` | 1 second | `p` / `n` | previous / next open note |
+   | | | `u` | undo the last delete |
 
 3. **Write the note.** Pick a type (effect, text, cut, sound, music, colour, b-roll, other), type what should change, and save. With no range marked, the note pins to the current frame.
 4. **Send open notes to Claude.** Claude gets every open note with its frames, times and type. After making a change it marks the notes done in that render version (`v6`, say), so the list doubles as a change log.
+5. **Review the list.** Switch between **Open**, **Done** and **All**. Each note has **Edit** (change its text in place), **Done** / **Reopen**, and **Delete**, which you can undo. Ticking a note done while a newer render is open records that render as the one with the fix.
 
 The frame picture shows in the Claude desktop app and in VS Code. In a terminal, times, ranges and notes all work, but there's no picture.
 
@@ -71,8 +73,11 @@ python3 web/server.py --root ~/my-videos
 Then open http://localhost:5410. `--root` is the folder holding your projects (default: the folder you run it from); `--port` changes the port. It needs Python 3 and `ffprobe`, nothing else to install.
 
 - It runs on your own computer only: it listens on `127.0.0.1` and serves no file outside `--root`.
+- **Compare** shows a second render beside the main one, locked to the same moment while you play, step or scrub. Use it to check that a fix landed (`C` toggles it).
+- **◀ Note / Note ▶** (or `[` / `]`) jump between the open notes on the render you're watching.
+- **Delete** happens at once, with an **Undo** button (or `U`) for a few seconds afterwards.
 - Each note can save a snapshot of its frame, with the box drawn on it, to `notes/snaps/<id>.jpg`.
-- **Copy for Claude** puts the open notes on the clipboard, for pasting into any chat.
+- **Copy for Claude** puts the open notes on the clipboard, for pasting into any chat. If the browser blocks the clipboard, it shows them in a box to copy by hand.
 - Press `?` on the page for every shortcut.
 
 ## For Claude

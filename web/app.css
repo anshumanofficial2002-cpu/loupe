@@ -28,6 +28,10 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: calc(
 @media (max-width: 1000px) { main { grid-template-columns: 1fr; height: auto; } }
 
 .player { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stages { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-height: 240px; }
+.stages.split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.stages .stage { min-height: 0; height: 100%; }
+.badge { position: absolute; top: 8px; left: 8px; font-size: 12px; background: rgba(0,0,0,.65); color: #fff; padding: 2px 8px; border-radius: 6px; pointer-events: none; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage { position: relative; background: #000; border-radius: var(--radius); overflow: hidden; flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; }
 .stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
@@ -86,3 +90,8 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: calc(
 dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; }
 dialog::backdrop { background: rgba(0,0,0,.5); }
 dialog td { padding: 3px 14px 3px 0; } dialog td:first-child { color: var(--accent); font-family: ui-monospace, Menlo, monospace; }
+
+.toast.action { pointer-events: auto; }
+.toast button { margin-left: 12px; }
+#copy-text { width: min(70vw, 720px); font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--bg, #111); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.stage[hidden] { display: none; }

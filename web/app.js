@@ -6,11 +6,12 @@ const KINDS = [
 ]
 const kindLabel = k => (KINDS.find(x => x[0] === k) ?? [k, k])[1]
 const $ = id => document.getElementById(id)
-const v = $('v'), overlay = $('overlay'), ctx = overlay.getContext('2d')
+const v = $('v'), v2 = $('v2'), overlay = $('overlay'), ctx = overlay.getContext('2d')
 
 const S = {
   project: null, video: null, meta: null, scenes: [], notes: [], mtime: 0,
   frame: 0, marks: { in: null, out: null }, box: null, kind: 'effect', loop: false, filter: 'open', selected: null, editing: null,
+  compare: '', videos: [], undo: null,
 }
 const fps = () => S.meta?.fps ?? 24
 const lastFrame = () => (S.meta ? S.meta.frames - 1 : 0)
@@ -21,9 +22,20 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const remember = (k, val) => { try { localStorage.setItem(`loupe:${k}`, val) } catch {} }
 const recall = k => { try { return localStorage.getItem(`loupe:${k}`) } catch { return null } }
 
-function toast(text) {
-  const t = $('toast'); t.textContent = text; t.classList.add('show')
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200)
+function toast(text, action) {
+  const t = $('toast'); t.textContent = text; t.classList.toggle('action', !!action)
+  if (action) {
+    const b = document.createElement('button'); b.textContent = action.label
+    b.addEventListener('click', () => { t.classList.remove('show'); action.run() }); t.appendChild(b)
+  }
+  t.classList.add('show')
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show', 'action'), action ? 6000 : 2200)
+}
+const shortName = vid => vid.replace(/^[^/]+\//, '')
+const newId = () => {   // unique even for two notes saved in the same millisecond
+  const t = Date.now().toString(36); let id = `n${t}`
+  for (let i = 1; S.notes.some(n => n.id === id); i++) id = `n${t}${i}`
+  return id
 }
 
 // ------------------------------------------------------------------ loading
@@ -40,9 +52,10 @@ async function loadProjects() {
 async function openProject(path) {
   S.project = path; remember('project', path)
   const d = await api('/api/project', { project: path })
-  S.scenes = d.scenes; S.notes = d.notes
+  S.scenes = d.scenes; S.notes = d.notes; S.videos = d.videos
   const sel = $('video'); sel.innerHTML = ''
-  for (const vid of d.videos) sel.add(new Option(vid.replace(/^[^/]+\//, ''), vid))
+  for (const vid of d.videos) sel.add(new Option(shortName(vid), vid))
+  if (!d.videos.length) { $('meta').textContent = 'This project has no renders.'; return }
   $('path').textContent = `${path.split('/').pop()}/notes/edit-notes.md`
   const want = recall(`video:${path}`)
   sel.value = d.videos.includes(want) ? want : d.videos[0]
@@ -51,11 +64,18 @@ async function openProject(path) {
 
 async function openVideo(vid) {
   S.video = vid; remember(`video:${S.project}`, vid)
-  S.meta = await api('/api/meta', { project: S.project, video: vid })
+  const meta = await api('/api/meta', { project: S.project, video: vid })
+  if (meta.error || !meta.frames) { $('meta').textContent = `Can't read ${shortName(vid)}: ${meta.error ?? 'no video stream'}`; toast(`Can't read ${shortName(vid)}`); return }
+  S.meta = meta
   $('meta').textContent = `${Math.round(fps() * 1000) / 1000} fps · ${S.meta.duration.toFixed(2)} s · ${S.meta.frames} frames · ${S.meta.width}×${S.meta.height}`
   v.src = `/media?${q({ project: S.project, path: vid })}`
-  await new Promise(res => v.addEventListener('loadedmetadata', res, { once: true }))
-  drawTimeline(); renderNotes()
+  const loaded = await new Promise(res => {
+    v.addEventListener('loadedmetadata', () => res(true), { once: true })
+    v.addEventListener('error', () => res(false), { once: true })
+  })
+  if (!loaded) { toast(`The browser can't play ${shortName(vid)} (try an H.264 MP4)`); return }
+  v.playbackRate = v.defaultPlaybackRate = Number($('speed').value)   // a new source resets the speed
+  fillCompare(); drawTimeline(); renderNotes()
   seek(Math.min(S.frame, lastFrame()))
 }
 
@@ -63,7 +83,34 @@ async function openVideo(vid) {
 function seek(f) {
   S.frame = Math.max(0, Math.min(lastFrame(), Math.round(f)))
   v.currentTime = (S.frame + 0.5) / fps()   // the middle of frame f: the decoder lands on f itself
+  syncCompare(true)
   updateReadout()
+}
+
+// ------------------------------------------------------------------ compare: a second render beside this one, same moment
+function fillCompare() {
+  const sel = $('compare'), keep = S.compare
+  sel.innerHTML = ''; sel.add(new Option('Off', ''))
+  for (const vid of S.videos) if (vid !== S.video) sel.add(new Option(shortName(vid), vid))
+  S.compare = [...sel.options].some(o => o.value === keep) ? keep : ''
+  sel.value = S.compare; showCompare()
+}
+function showCompare() {
+  const on = !!S.compare
+  $('stages').classList.toggle('split', on); $('stage2').hidden = !on; $('badge1').hidden = !on
+  if (!on) { v2.removeAttribute('src'); v2.load(); return }
+  $('badge1').textContent = shortName(S.video); $('badge2').textContent = shortName(S.compare)
+  const src = `/media?${q({ project: S.project, path: S.compare })}`
+  if (v2.getAttribute('src') !== src) { v2.src = src; v2.addEventListener('loadedmetadata', () => syncCompare(true), { once: true }) }
+  else syncCompare(true)
+  requestAnimationFrame(drawOverlay)
+}
+function syncCompare(force) {   // the same time, not the same frame number: the renders may differ in fps or length
+  if (!S.compare || !v2.duration) return
+  const t = Math.min(v.currentTime, v2.duration - 0.001)
+  if (force || Math.abs(v2.currentTime - t) > 1 / fps()) v2.currentTime = Math.max(0, t)
+  if (v.paused !== v2.paused) { if (v.paused) v2.pause(); else v2.play().catch(() => {}) }
+  v2.playbackRate = v.playbackRate
 }
 const step = d => { if (!v.paused) v.pause(); seek(S.frame + d) }
 
@@ -78,7 +125,8 @@ function onFrame(_, md) {   // every presented frame while playing: exact frame 
   if (!v.paused) {
     S.frame = Math.min(lastFrame(), Math.floor(md.mediaTime * fps() + 1e-3))
     const out = S.marks.out ?? lastFrame()
-    if (S.loop && S.marks.in !== null && S.frame >= out) { v.currentTime = (S.marks.in + 0.5) / fps(); S.frame = S.marks.in }
+    if (S.loop && S.marks.in !== null && S.frame >= out) { v.currentTime = (S.marks.in + 0.5) / fps(); S.frame = S.marks.in; syncCompare(true) }
+    else syncCompare(false)
     updateReadout()
   }
   v.requestVideoFrameCallback(onFrame)
@@ -212,10 +260,11 @@ async function saveNote() {
   if (!S.meta) return
   if (!v.paused) { v.pause(); seek(Math.floor(v.currentTime * fps() + 1e-3)) }
   const { f0, f1 } = noteRange()
-  const id = `n${Date.now().toString(36)}`
+  const id = newId()
   // snapshot the first frame of the range
   if (S.frame !== f0) { seek(f0); await new Promise(r => v.addEventListener('seeked', r, { once: true })) }
-  const snap = $('snap').checked ? await snapshot(id) : undefined
+  let snap
+  if ($('snap').checked) { try { snap = await snapshot(id) } catch { toast('Saved without a snapshot: the frame could not be captured') } }
   const note = { id, video: S.video, f0, f1, fps: fps(), kind: S.kind, text, scene: sceneAt(f0), status: 'open', createdAt: new Date().toISOString() }
   if (S.box) note.box = { x: +S.box.x.toFixed(4), y: +S.box.y.toFixed(4), w: +S.box.w.toFixed(4), h: +S.box.h.toFixed(4) }
   if (snap) note.snap = snap
@@ -224,13 +273,34 @@ async function saveNote() {
   updateReadout(); drawOverlay(); toast(`Saved ${fmtRange(f0, f1, fps())}`)
 }
 
-function selectNote(id) {
+async function selectNote(id) {
   const n = S.notes.find(x => x.id === id); if (!n) return
   S.selected = id; S.box = null
   if (!v.paused) v.pause()
+  if (n.video !== S.video && [...$('video').options].some(o => o.value === n.video)) { $('video').value = n.video; await openVideo(n.video) }
   S.marks = n.f0 === n.f1 ? { in: null, out: null } : { in: n.f0, out: n.f1 }
-  const go = () => { seek(n.f0); renderNotes(); drawOverlay() }
-  if (n.video !== S.video && [...$('video').options].some(o => o.value === n.video)) { $('video').value = n.video; openVideo(n.video).then(go) } else go()
+  seek(n.f0); renderNotes(); drawOverlay()
+  if (S.frame !== n.f0 || v.seeking) await new Promise(r => v.addEventListener('seeked', r, { once: true }))
+}
+
+function jumpNote(d) {   // the open note before (-1) or after (1) the playhead, on this render
+  const open = S.notes.filter(n => n.status === 'open' && n.video === S.video).sort((a, b) => a.f0 - b.f0)
+  const n = d === 1 ? open.find(x => x.f0 > S.frame) : [...open].reverse().find(x => x.f0 < S.frame)
+  if (!n) { toast(`No open note ${d === 1 ? 'after' : 'before'} ${fmtFrame(S.frame)} on this render`); return }
+  selectNote(n.id)
+}
+
+async function deleteNote(id) {
+  const gone = S.notes.find(x => x.id === id); if (!gone) return
+  await mutate(l => l.filter(x => x.id !== id))
+  S.undo = gone
+  toast(`Deleted the note at ${fmtRange(gone.f0, gone.f1, gone.fps)}`, { label: 'Undo', run: undoDelete })
+}
+async function undoDelete() {
+  const n = S.undo; if (!n) return
+  S.undo = null
+  await mutate(l => (l.some(x => x.id === n.id) ? l : [...l, n]))
+  toast(`Restored the note at ${fmtRange(n.f0, n.f1, n.fps)}`)
 }
 
 function renderNotes() {
@@ -257,11 +327,13 @@ function renderNotes() {
     } else textEl.textContent = n.text
     const acts = el.querySelector('.acts')
     const btn = (label, fn, cls = '') => { const b = document.createElement('button'); b.textContent = label; b.className = cls; b.addEventListener('click', e => { e.stopPropagation(); fn() }); acts.appendChild(b) }
-    btn('▶ Play', () => { selectNote(n.id); S.loop = n.f1 > n.f0; v.play(); updateReadout() })
-    if (n.status === 'open') btn('Done', () => mutate(l => l.map(x => x.id === n.id ? { ...x, status: 'done' } : x)))
+    btn('▶ Play', async () => { await selectNote(n.id); S.loop = n.f1 > n.f0; await v.play().catch(() => {}); updateReadout() })
+    // ticked done while a different render is open: record which render has the fix
+    const doneIn = S.video && S.video !== n.video ? shortName(S.video).replace(/\.[^.]+$/, '') : undefined
+    if (n.status === 'open') btn('Done', () => mutate(l => l.map(x => x.id === n.id ? { ...x, status: 'done', doneIn: doneIn ?? x.doneIn } : x)))
     else btn('Reopen', () => mutate(l => l.map(x => x.id === n.id ? { ...x, status: 'open', doneIn: undefined } : x)))
     btn('Edit', () => { S.editing = n.id; renderNotes() })
-    btn('Delete', () => { if (confirm('Delete this note?')) mutate(l => l.filter(x => x.id !== n.id)) }, 'del')
+    btn('Delete', () => deleteNote(n.id), 'del')
     el.addEventListener('click', () => selectNote(n.id))
     box.appendChild(el)
   }
@@ -289,6 +361,7 @@ const ACT = {
   out: () => { S.marks.out = S.frame; if (S.marks.in !== null && S.marks.in > S.frame) S.marks.in = null; updateReadout() },
   clear: () => { S.marks = { in: null, out: null }; S.box = null; S.loop = false; updateReadout(); drawOverlay() },
   loop: () => { S.loop = !S.loop; updateReadout() },
+  'prev-note': () => jumpNote(-1), 'next-note': () => jumpNote(1),
 }
 document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => ACT[b.dataset.act]()))
 document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { S.filter = b.dataset.filter; renderNotes() }))
@@ -317,10 +390,13 @@ $('goto').addEventListener('keydown', e => {
 })
 $('project').addEventListener('change', e => openProject(e.target.value))
 $('video').addEventListener('change', e => openVideo(e.target.value))
-$('speed').addEventListener('change', e => { v.playbackRate = Number(e.target.value) })
+$('speed').addEventListener('change', e => { v.playbackRate = v.defaultPlaybackRate = Number(e.target.value); syncCompare(false) })
+$('compare').addEventListener('change', e => { S.compare = e.target.value; showCompare() })
 $('mute').addEventListener('change', e => { v.muted = e.target.checked })
 $('copy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(notesAsText()); toast('Open notes copied, paste them to Claude') } catch { toast('Copy failed: the browser refused the clipboard') }
+  const text = notesAsText()
+  try { await navigator.clipboard.writeText(text); toast('Open notes copied, paste them to Claude') }
+  catch { $('copy-text').value = text; $('copy-dlg').showModal(); $('copy-text').select() }   // no clipboard access: copy by hand
 })
 $('help-btn').addEventListener('click', () => $('help').showModal())
 
@@ -339,13 +415,15 @@ document.addEventListener('keydown', e => {
     ArrowUp: () => beatJump(-1), ArrowDown: () => beatJump(1),
     i: ACT.in, o: ACT.out, x: ACT.clear, p: ACT.loop, n: () => $('note').focus(), g: () => $('goto').focus(),
     Escape: () => { S.box = null; drawOverlay(); updateReadout() }, '?': () => $('help').showModal(),
+    '[': () => jumpNote(-1), ']': () => jumpNote(1), u: undoDelete,
+    c: () => { const o = [...$('compare').options]; S.compare = S.compare ? '' : (o[1]?.value ?? ''); $('compare').value = S.compare; showCompare() },
   }
   if (/^[1-8]$/.test(k)) { S.kind = KINDS[Number(k) - 1][0]; paintKinds(); e.preventDefault(); return }
   const fn = map[k] ?? map[k.toLowerCase?.()]
   if (fn) { e.preventDefault(); fn() }
 })
 
-v.addEventListener('pause', updateReadout); v.addEventListener('play', updateReadout)
+v.addEventListener('pause', () => { syncCompare(true); updateReadout() }); v.addEventListener('play', () => { syncCompare(false); updateReadout() })
 v.addEventListener('seeked', drawOverlay)
 v.requestVideoFrameCallback(onFrame)
 loadProjects()

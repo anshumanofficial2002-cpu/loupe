@@ -11,6 +11,7 @@
     <div class="brand">Loupe</div>
     <label>Project <select id="project"></select></label>
     <label>Render <select id="video"></select></label>
+    <label title="Show a second render beside this one, at the same moment">Compare <select id="compare"><option value="">Off</option></select></label>
     <span id="meta" class="dim"></span>
     <span class="grow"></span>
     <button id="help-btn" class="ghost" title="Keyboard shortcuts (?)">Shortcuts</button>
@@ -18,10 +19,17 @@
 
   <main>
     <section class="player">
-      <div id="stage" class="stage">
-        <video id="v" preload="auto" playsinline></video>
-        <canvas id="overlay"></canvas>
-        <div id="stage-hint" class="stage-hint">Drag on the picture to draw a box where the change should go</div>
+      <div id="stages" class="stages">
+        <div id="stage" class="stage">
+          <video id="v" preload="auto" playsinline></video>
+          <canvas id="overlay"></canvas>
+          <div id="badge1" class="badge" hidden></div>
+          <div id="stage-hint" class="stage-hint">Drag on the picture to draw a box where the change should go</div>
+        </div>
+        <div id="stage2" class="stage" hidden>
+          <video id="v2" preload="auto" playsinline muted></video>
+          <div id="badge2" class="badge"></div>
+        </div>
       </div>
 
       <div class="readout">
@@ -45,6 +53,8 @@
         <button data-act="out" title="Mark out (O)">Mark out</button>
         <button data-act="clear" title="Clear range and box (X)">Clear</button>
         <button data-act="loop" id="loop" title="Loop the marked range (P)">⟲ Loop range</button>
+        <button data-act="prev-note" title="Previous open note ([)">◀ Note</button>
+        <button data-act="next-note" title="Next open note (])">Note ▶</button>
         <span class="sep"></span>
         <label class="dim">Speed <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
         <label class="dim"><input type="checkbox" id="mute" /> Mute</label>
@@ -105,7 +115,16 @@
       <tr><td>1 – 8</td><td>Pick the note type</td></tr>
       <tr><td>Drag on the picture</td><td>Draw a box (Esc clears it)</td></tr>
       <tr><td>G</td><td>Go to a time, frame or range</td></tr>
+      <tr><td>[ / ]</td><td>Previous / next open note</td></tr>
+      <tr><td>C</td><td>Compare with another render on / off</td></tr>
+      <tr><td>U</td><td>Undo the last delete</td></tr>
     </table>
+    <form method="dialog"><button class="primary">Close</button></form>
+  </dialog>
+  <dialog id="copy-dlg">
+    <h3>Copy these notes</h3>
+    <p class="dim">The browser didn't allow copying automatically. Select all (⌘A) and copy (⌘C).</p>
+    <textarea id="copy-text" rows="12" readonly></textarea>
     <form method="dialog"><button class="primary">Close</button></form>
   </dialog>
   <script type="module" src="/app.js"></script>

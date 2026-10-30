@@ -102,6 +102,9 @@ test('a note goes from the pane to the notes file, to Claude, and back done', as
   const r = await $.tool.call({ tool: 'mcp__loupe__edit_notes', action: 'done', ids: [note!.id], version: 'v3' })
   expect(JSON.stringify(r)).toContain('Ticked done')
   expect(notesOnDisk(disk)[0]).toMatchObject({ status: 'done', doneIn: 'v3' })
+  // the Open filter now hides it; Done shows it with the version
+  expect(await ui.find({ type: 'Text', text: /No open notes/ })).toBeDefined()
+  await ui.press({ key: 'show-done' })
   expect(await ui.find({ type: 'Text', text: /Sound effects · done in v3/ })).toBeDefined()
   await ui.unmount()
 })
@@ -135,4 +138,48 @@ test('the terminal gets times and notes without the picture', async ($, on) => {
     expect(await ui.find({ key: 'mark-in' })).toBeDefined()
     await ui.unmount()
   }
+})
+
+test('jump between notes, edit one, delete and undo, tick done on a newer render', async ($, on) => {
+  const disk = newDisk()
+  fakeEngine(on, disk, [])
+  await $.session.start({ cwd: ROOT, surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+
+  await ui.input({ key: 'goto', text: '1' })
+  await ui.input({ key: 'note', text: 'first' })
+  await ui.input({ key: 'goto', text: '4' })
+  await ui.input({ key: 'note', text: 'second' })
+  const [a, b] = notesOnDisk(disk).sort((x, y) => x.f0 - y.f0)
+  expect([a!.f0, b!.f0]).toEqual([24, 96])
+
+  await ui.input({ key: 'goto', text: '0' })
+  await ui.press({ key: 'next-note' })
+  expect(await ui.find({ type: 'Text', text: /^F0024 · / })).toBeDefined()
+  await ui.press({ key: 'next-note' })
+  expect(await ui.find({ type: 'Text', text: /^F0096 · / })).toBeDefined()
+  await ui.press({ key: 'next-note' })
+  expect(await ui.find({ type: 'Text', text: /No open note after F0096/ })).toBeDefined()
+  await ui.press({ key: 'prev-note' })
+  expect(await ui.find({ type: 'Text', text: /^F0024 · / })).toBeDefined()
+
+  await ui.press({ key: `edit-${a!.id}` })
+  await ui.input({ key: `edit-text-${a!.id}`, text: 'first, but louder' })
+  expect(notesOnDisk(disk).find(n => n.id === a!.id)?.text).toBe('first, but louder')
+  expect(await ui.find({ key: `edit-text-${a!.id}` })).toBeUndefined()
+
+  await ui.press({ key: `del-${b!.id}` })
+  expect(notesOnDisk(disk)).toHaveLength(1)
+  await ui.press({ key: 'undo' })
+  expect(notesOnDisk(disk).map(n => n.id).sort()).toEqual([a!.id, b!.id].sort())
+  expect(await ui.find({ key: 'undo' })).toBeUndefined()
+
+  // ticked done while a newer render is open: the note records which render has the fix
+  await ui.select({ key: 'video', value: 'exports/cut_v1.mp4' })
+  await ui.press({ key: `done-${a!.id}` })
+  expect(notesOnDisk(disk).find(n => n.id === a!.id)).toMatchObject({ status: 'done', doneIn: 'cut_v1' })
+  await ui.press({ key: 'show-all' })
+  expect(await ui.find({ key: `reopen-${a!.id}` })).toBeDefined()
+  expect(await ui.find({ key: `done-${b!.id}` })).toBeDefined()
+  await ui.unmount()
 })

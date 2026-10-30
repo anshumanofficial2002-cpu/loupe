@@ -19,6 +19,9 @@ const marks = atom({ plugin: 'loupe', key: 'marks' } as const, { in: null, out: 
 const kind = atom({ plugin: 'loupe', key: 'kind' } as const, 'effect')
 const scenes = atom({ plugin: 'loupe', key: 'scenes' } as const, [])
 const msg = atom({ plugin: 'loupe', key: 'msg' } as const, '')
+const filter = atom({ plugin: 'loupe', key: 'filter' } as const, 'open')
+const editing = atom({ plugin: 'loupe', key: 'editing' } as const, null)
+const undo = atom({ plugin: 'loupe', key: 'undo' } as const, null)
 // Change the tag when a note's fields change: it declines what an earlier version stored.
 const notes = atom({ plugin: 'loupe', key: 'notes' } as const, [], { shape: 'notes-1' })
 
@@ -223,11 +226,14 @@ async function addNote($: $T, text: string) {
   let f1 = mk.out ?? (mk.in !== null ? Math.max(mk.in, cur) : cur)
   if (f1 < f0) [f0, f1] = [f1, f0]
   const now = new Date(await $.clock.now())
+  const existing = await loadNotes($, proj)
+  let id = `n${now.getTime().toString(36)}`
+  for (let i = 1; existing.some(n => n.id === id); i++) id = `n${now.getTime().toString(36)}${i}`   // two notes in one millisecond
   const note: Note = {
-    id: `n${now.getTime().toString(36)}`, video: vid, f0, f1, fps: m.fps, kind: await read($, kind), text: t,
+    id, video: vid, f0, f1, fps: m.fps, kind: await read($, kind), text: t,
     scene: sceneAt(await read($, scenes), f0 / m.fps), status: 'open', createdAt: now.toISOString(),
   }
-  const list = [...(await loadNotes($, proj)), note]
+  const list = [...existing, note]
   await update($, notes, () => list)
   await update($, marks, () => ({ in: null, out: null }))
   await update($, msg, () => `Saved ${fmtRange(f0, f1, m.fps)} → ${base(proj)}/notes/edit-notes.md`)
@@ -240,6 +246,36 @@ async function editNotes($: $T, fn: (list: Note[]) => Note[]) {
   const list = fn(await loadNotes($, proj))   // fresh from the file: another tool or Claude may have written it
   await update($, notes, () => list)
   await saveNotes($, proj, list)
+}
+
+/** The open render's name, for "done in …", when it is not the render the note was made on. */
+const doneInFor = (n: Note, vid: string | null) => (vid && vid !== n.video ? base(vid).replace(/\.[^.]+$/, '') : undefined)
+
+async function deleteNote($: $T, id: string) {
+  const gone = (await read($, notes)).find(n => n.id === id) ?? null
+  await editNotes($, l => l.filter(x => x.id !== id))
+  await update($, undo, () => gone)
+  if (gone) await update($, msg, () => `Deleted the note at ${fmtRange(gone.f0, gone.f1, gone.fps)}. Press Undo delete to bring it back.`)
+}
+
+async function undoDelete($: $T) {
+  const n = await read($, undo)
+  if (!n) return
+  await editNotes($, l => (l.some(x => x.id === n.id) ? l : [...l, n]))
+  await update($, undo, () => null)
+  await update($, msg, () => `Restored the note at ${fmtRange(n.f0, n.f1, n.fps)}.`)
+}
+
+/** Jump to the open note before (d = -1) or after (d = 1) the current frame on this render. */
+async function jumpNote($: $T, d: 1 | -1) {
+  const vid = await read($, video)
+  const fr = await read($, frame)
+  const open = (await read($, notes)).filter(n => n.status === 'open' && n.video === vid).sort((a, b) => a.f0 - b.f0)
+  const n = d === 1 ? open.find(x => x.f0 > fr) : [...open].reverse().find(x => x.f0 < fr)
+  if (!n) { await update($, msg, () => `No open note ${d === 1 ? 'after' : 'before'} ${fmtFrame(fr)} on this render.`); return }
+  await update($, marks, () => (n.f0 === n.f1 ? { in: null, out: null } : { in: n.f0, out: n.f1 }))
+  await update($, msg, () => `${kindLabel(n.kind)}: ${n.text}`)
+  await showFrame($, n.f0)
 }
 
 function noteLine(n: Note, i: number): string {
@@ -342,6 +378,9 @@ export const register: Register = on => {
     const list = [...(await read($, notes))].sort((a, b) => a.f0 - b.f0)
     const sc = await read($, scenes)
     const note = await read($, msg)
+    const show = await read($, filter)
+    const editId = await read($, editing)
+    const gone = await read($, undo)
     const fps = m?.fps ?? 24
     const Select = 'Select' in t ? t.Select : undefined
     const Input = 'Input' in t ? t.Input : undefined
@@ -393,6 +432,8 @@ export const register: Register = on => {
             <Button key="mark-in" label="Mark in" hotkey="i" onPress={() => void update($, marks, v => ({ ...v, in: fr }))} />
             <Button key="mark-out" label="Mark out" hotkey="o" onPress={() => void update($, marks, v => ({ ...v, out: fr }))} />
             <Button key="clear" label="Clear range" hotkey="x" onPress={() => void update($, marks, () => ({ in: null, out: null }))} />
+            <Button key="prev-note" label="◀ Note" hotkey="p" onPress={() => void jumpNote($, -1)} />
+            <Button key="next-note" label="Note ▶" hotkey="n" onPress={() => void jumpNote($, 1)} />
           </Box>
         )}
 
@@ -440,15 +481,26 @@ export const register: Register = on => {
         )}
 
         {note !== '' && <Text color="yellow">{note}</Text>}
+        {gone && <Button key="undo" label="Undo delete" hotkey="u" onPress={() => void undoDelete($)} />}
 
         <Box flexDirection="row" gap={2} flexWrap="wrap" alignItems="center">
           <Button key="send" label={`Send open notes to Claude (${list.filter(n => n.status === 'open').length})`} onPress={() => void sendToClaude($)} />
           {proj && <Text dimColor>Saved to {base(proj)}/notes/edit-notes.md</Text>}
         </Box>
 
+        <Box flexDirection="row" gap={1} flexWrap="wrap">
+          {(['open', 'done', 'all'] as const).map(f => {
+            const count = f === 'all' ? list.length : list.filter(n => n.status === f).length
+            const name = f === 'open' ? 'Open' : f === 'done' ? 'Done' : 'All'
+            return <Button key={`show-${f}`} label={`${show === f ? '● ' : ''}${name} (${count})`} onPress={() => void update($, filter, () => f)} />
+          })}
+        </Box>
+
         <Box flexDirection="column">
           {list.length === 0 && <Text dimColor>No notes yet.</Text>}
-          {list.map(n => (
+          {list.length > 0 && list.every(n => show !== 'all' && n.status !== show) &&
+            <Text dimColor>{show === 'open' ? 'No open notes: everything is done.' : 'Nothing ticked done yet.'}</Text>}
+          {list.filter(n => show === 'all' || n.status === show).map(n => (
             <Box key={`row-${n.id}`} flexDirection="column" marginBottom={1}>
               <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
                 <Button key={`go-${n.id}`} label={`${fmtRange(n.f0, n.f1, n.fps)}${n.scene ? ` · ${n.scene}` : ''}`} onPress={async () => {
@@ -458,11 +510,19 @@ export const register: Register = on => {
                 }} />
                 <Text dimColor={n.status === 'done'}>{kindLabel(n.kind)}{n.status === 'done' ? ` · done${n.doneIn ? ` in ${n.doneIn}` : ''}` : ''}</Text>
                 {n.status === 'open'
-                  ? <Button key={`done-${n.id}`} label="Done" onPress={() => void editNotes($, l => l.map(x => x.id === n.id ? { ...x, status: 'done' } : x))} />
+                  ? <Button key={`done-${n.id}`} label="Done" onPress={() => void editNotes($, l => l.map(x => x.id === n.id ? { ...x, status: 'done', doneIn: doneInFor(x, vid) } : x))} />
                   : <Button key={`reopen-${n.id}`} label="Reopen" onPress={() => void editNotes($, l => l.map(x => x.id === n.id ? { ...x, status: 'open', doneIn: undefined } : x))} />}
-                <Button key={`del-${n.id}`} label="Delete" onPress={() => void editNotes($, l => l.filter(x => x.id !== n.id))} />
+                <Button key={`edit-${n.id}`} label={editId === n.id ? 'Cancel' : 'Edit'} onPress={() => void update($, editing, v => (v === n.id ? null : n.id))} />
+                <Button key={`del-${n.id}`} label="Delete" onPress={() => void deleteNote($, n.id)} />
               </Box>
-              <Text dimColor={n.status === 'done'}>{n.text}</Text>
+              {editId === n.id && Input
+                ? <Input key={`edit-text-${n.id}`} label="Edit note" value={n.text} rows={2} autoFocus submitLabel="save"
+                    onSubmit={async v => {
+                      const text = v.trim()
+                      if (text) await editNotes($, l => l.map(x => x.id === n.id ? { ...x, text } : x))
+                      await update($, editing, () => null)
+                    }} />
+                : <Text dimColor={n.status === 'done'}>{n.text}</Text>}
             </Box>
           ))}
         </Box>

@@ -45,6 +45,9 @@ declare module 'claude-code' {
       notes: Shaped<Note[]>
       scenes: Scene[]
       msg: string
+      filter: 'open' | 'done' | 'all'
+      editing: string | null
+      undo: Note | null
     }
   }
 }

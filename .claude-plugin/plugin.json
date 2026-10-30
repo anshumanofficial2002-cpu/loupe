@@ -1,6 +1,6 @@
 {
   "name": "loupe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Frame-accurate edit notes for Claude Code: step through a render frame by frame, mark a range, pin a note (effect, text, cut, sound…) and hand the list to Claude to fix.",
   "author": {
     "name": "Anshuman Shrivastava"
