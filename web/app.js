@@ -173,7 +173,7 @@ function drawTimeline() {
 function drawNoteMarks() {
   const box = $('tl-notes'); box.innerHTML = ''
   for (const n of S.notes.filter(n => n.video === S.video)) {
-    const d = document.createElement('div'); d.className = `tl-note ${n.status}`; d.style.left = pct(n.f0)
+    const d = document.createElement('div'); d.className = `tl-note ${n.status}`; d.dataset.kind = n.kind; d.style.left = pct(n.f0)
     d.style.width = `calc(${(100 * (n.f1 - n.f0)) / Math.max(1, lastFrame())}% + 4px)`; d.title = `${fmtRange(n.f0, n.f1, n.fps)} · ${n.text}`
     d.addEventListener('pointerdown', e => { e.stopPropagation(); selectNote(n.id) })
     box.appendChild(d)
@@ -311,7 +311,7 @@ function renderNotes() {
   const list = (S.filter === 'open' ? open : S.filter === 'done' ? done : S.notes).slice().sort((a, b) => a.f0 - b.f0)
   if (!list.length) { box.innerHTML = `<div class="empty">${S.filter === 'done' ? 'Nothing ticked done yet.' : 'No notes yet. Pick a moment, write what should change, press Enter.'}</div>`; return }
   for (const n of list) {
-    const el = document.createElement('div'); el.className = `note ${n.status}${n.id === S.selected ? ' sel' : ''}`
+    const el = document.createElement('div'); el.className = `note ${n.status}${n.id === S.selected ? ' sel' : ''}`; el.dataset.kind = n.kind
     const img = n.snap ? `<img src="/media?${q({ project: S.project, path: n.snap })}" alt="">` : '<div class="noimg"></div>'
     el.innerHTML = `${img}<div>
       <div class="meta">${fmtRange(n.f0, n.f1, n.fps)}${n.scene ? ` · ${esc(n.scene)}` : ''}${n.box ? ' · box' : ''}</div>
@@ -348,7 +348,10 @@ function notesAsText() {
 // pick up ticks Claude (or the mod) writes into the file
 setInterval(async () => {
   if (!S.project || document.hidden || S.editing) return
-  const d = await api('/api/notes', { project: S.project })
+  let d
+  try { d = await api('/api/notes', { project: S.project }) }
+  catch { if (!S.offline) { S.offline = true; document.body.classList.add('offline'); toast('Lost the Loupe server: is it still running?') } return }
+  if (S.offline) { S.offline = false; document.body.classList.remove('offline'); toast('Reconnected to the Loupe server') }
   if (JSON.stringify(d.notes) !== JSON.stringify(S.notes)) { S.notes = d.notes; renderNotes(); drawNoteMarks() }
 }, 2500)
 
@@ -368,7 +371,7 @@ document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('clic
 
 const kinds = $('kinds')
 KINDS.forEach(([k, label], i) => {
-  const b = document.createElement('button'); b.innerHTML = `<span class="k">${i + 1}</span>${label}`; b.dataset.kind = k
+  const b = document.createElement('button'); b.innerHTML = `<i class="dot"></i>${label}<span class="k">${i + 1}</span>`; b.dataset.kind = k
   b.addEventListener('click', () => { S.kind = k; paintKinds() }); kinds.appendChild(b)
 })
 const paintKinds = () => kinds.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.kind === S.kind))

@@ -8,12 +8,12 @@
 </head>
 <body>
   <header>
-    <div class="brand">Loupe</div>
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Loupe</div>
     <label>Project <select id="project"></select></label>
     <label>Render <select id="video"></select></label>
     <label title="Show a second render beside this one, at the same moment">Compare <select id="compare"><option value="">Off</option></select></label>
-    <span id="meta" class="dim"></span>
     <span class="grow"></span>
+    <span id="meta" class="meta-line"></span>
     <button id="help-btn" class="ghost" title="Keyboard shortcuts (?)">Shortcuts</button>
   </header>
 
@@ -41,23 +41,30 @@
       </div>
 
       <div class="transport">
-        <button data-act="start" title="Start (Home)">⏮</button>
-        <button data-act="-1s" title="Back 1 s (J or Shift+←)">−1 s</button>
-        <button data-act="-1f" title="Back 1 frame (←)">◀ 1f</button>
-        <button data-act="play" id="play" class="primary" title="Play / pause (Space or K)">▶ Play</button>
-        <button data-act="+1f" title="Forward 1 frame (→)">1f ▶</button>
-        <button data-act="+1s" title="Forward 1 s (L or Shift+→)">+1 s</button>
-        <button data-act="end" title="End (End)">⏭</button>
-        <span class="sep"></span>
-        <button data-act="in" title="Mark in (I)">Mark in</button>
-        <button data-act="out" title="Mark out (O)">Mark out</button>
-        <button data-act="clear" title="Clear range and box (X)">Clear</button>
-        <button data-act="loop" id="loop" title="Loop the marked range (P)">⟲ Loop range</button>
-        <button data-act="prev-note" title="Previous open note ([)">◀ Note</button>
-        <button data-act="next-note" title="Next open note (])">Note ▶</button>
-        <span class="sep"></span>
-        <label class="dim">Speed <select id="speed"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option></select></label>
-        <label class="dim"><input type="checkbox" id="mute" /> Mute</label>
+        <div class="seg">
+          <button data-act="start" title="Start (Home)" aria-label="Go to start">⏮</button>
+          <button data-act="-1s" title="Back 1 s (J or Shift+←)">−1s</button>
+          <button data-act="-1f" title="Back 1 frame (←)">◀ 1f</button>
+        </div>
+        <button data-act="play" id="play" class="primary play" title="Play / pause (Space or K)">▶ Play</button>
+        <div class="seg">
+          <button data-act="+1f" title="Forward 1 frame (→)">1f ▶</button>
+          <button data-act="+1s" title="Forward 1 s (L or Shift+→)">+1s</button>
+          <button data-act="end" title="End (End)" aria-label="Go to end">⏭</button>
+        </div>
+        <div class="seg">
+          <button data-act="in" title="Mark in (I)">In</button>
+          <button data-act="out" title="Mark out (O)">Out</button>
+          <button data-act="clear" title="Clear range and box (X)">Clear</button>
+          <button data-act="loop" id="loop" title="Loop the marked range (P)">⟲ Loop</button>
+        </div>
+        <div class="seg">
+          <button data-act="prev-note" title="Previous open note ([)">◀ Note</button>
+          <button data-act="next-note" title="Next open note (])">Note ▶</button>
+        </div>
+        <span class="grow"></span>
+        <label class="field">Speed <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+        <label class="toggle"><input type="checkbox" id="mute" /><span>Mute</span></label>
       </div>
 
       <div id="timeline" class="timeline">
@@ -72,7 +79,7 @@
     <aside class="side">
       <div class="composer">
         <div class="row">
-          <strong>New note</strong>
+          <span class="eyebrow">New note</span>
           <span id="pin" class="dim"></span>
         </div>
         <div id="kinds" class="kinds"></div>

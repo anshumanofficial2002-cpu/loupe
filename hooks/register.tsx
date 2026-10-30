@@ -422,16 +422,23 @@ export const register: Register = on => {
         )}
 
         {m && (
-          <Box flexDirection="row" gap={1} flexWrap="wrap">
+          <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+            <Text dimColor>Step</Text>
             <Button key="b-1s" label="−1 s" hotkey="z" onPress={() => void step($, -Math.round(fps))} />
             <Button key="b-5f" label="−5 f" hotkey="q" onPress={() => void step($, -5)} />
             <Button key="b-1f" label="◀ 1 f" hotkey="a" onPress={() => void step($, -1)} />
             <Button key="f+1f" label="1 f ▶" hotkey="d" onPress={() => void step($, 1)} />
             <Button key="f+5f" label="+5 f" hotkey="e" onPress={() => void step($, 5)} />
             <Button key="f+1s" label="+1 s" hotkey="c" onPress={() => void step($, Math.round(fps))} />
+          </Box>
+        )}
+        {m && (
+          <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+            <Text dimColor>Range</Text>
             <Button key="mark-in" label="Mark in" hotkey="i" onPress={() => void update($, marks, v => ({ ...v, in: fr }))} />
             <Button key="mark-out" label="Mark out" hotkey="o" onPress={() => void update($, marks, v => ({ ...v, out: fr }))} />
-            <Button key="clear" label="Clear range" hotkey="x" onPress={() => void update($, marks, () => ({ in: null, out: null }))} />
+            <Button key="clear" label="Clear" hotkey="x" onPress={() => void update($, marks, () => ({ in: null, out: null }))} />
+            <Text dimColor>Notes</Text>
             <Button key="prev-note" label="◀ Note" hotkey="p" onPress={() => void jumpNote($, -1)} />
             <Button key="next-note" label="Note ▶" hotkey="n" onPress={() => void jumpNote($, 1)} />
           </Box>
